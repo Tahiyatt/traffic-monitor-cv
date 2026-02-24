@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Traffic Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    h1 { margin-bottom: 4px; }
+
+    #status { color: gray; font-size: 0.9rem; margin-bottom: 12px; }
+    #status.running { color: green; }
+
+    .controls { margin-bottom: 16px; }
+    button { margin-right: 8px; padding: 6px 16px; cursor: pointer; }
+
+    .layout {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    #video-feed {
+      width: 620px;
+      border: 1px solid #ccc;
+      display: block;
+      background: #eee;
+      min-height: 360px;
+    }
+
+    .sidebar { flex: 1; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+    }
+
+    td, th {
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    th { background: #f5f5f5; }
+
+    #density { font-weight: bold; }
+    #density.LOW    { color: green; }
+    #density.MEDIUM { color: orange; }
+    #density.HIGH   { color: red; }
+
+    canvas { width: 100% !important; }
+
+    p.note {
+      font-size: 0.8rem;
+      color: gray;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Traffic Monitor</h1>
+  <div id="status">● stopped</div>
+
+ <div class="controls">
+  <select id="video-select">
+    <option value="">-- pick a video --</option>
+  </select>
+  <button id="btn-start" disabled>Start</button>
+  <button id="btn-stop"  disabled>Stop</button>
+</div>
+
+  <div class="layout">
+
+    <div>
+      <img id="video-feed" src="" alt="stream not started" />
+      <p class="note">Live feed — MJPEG from /video</p>
+    </div>
+
+    <div class="sidebar">
+
+      <table>
+        <tr><th colspan="2">Stats</th></tr>
+        <tr><td>FPS</td>         <td id="stat-fps">—</td></tr>
+        <tr><td>On screen</td>   <td id="stat-active">—</td></tr>
+        <tr><td>Density</td>     <td><span id="density">—</span></td></tr>
+        <tr><td>Total counted</td><td id="stat-total">—</td></tr>
+      </table>
+
+      <table id="zone-table">
+        <tr><th>Zone</th><th>Count</th></tr>
+        <tr><td colspan="2" style="color:gray">not started</td></tr>
+      </table>
+
+      <p style="margin-bottom: 8px; font-size: 0.85rem">Vehicle history:</p>
+      <canvas id="history-chart" height="160"></canvas>
+
+    </div>
+  </div>
+
+<script>
+  const API = "http://localhost:8000";
+
+  const btnStart   = document.getElementById("btn-start");
+  const btnStop    = document.getElementById("btn-stop");
+  const statusEl   = document.getElementById("status");
+  const videoFeed  = document.getElementById("video-feed");
+  const statFps    = document.getElementById("stat-fps");
+  const statActive = document.getElementById("stat-active");
+  const statTotal  = document.getElementById("stat-total");
+  const densityEl  = document.getElementById("density");
+  const zoneTable  = document.getElementById("zone-table");
+  const videoSelect = document.getElementById("video-select");
+
+  // basic chart
+  const chart = new Chart(
+    document.getElementById("history-chart").getContext("2d"),
+    {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [
+          { label: "Entering City", data: [], borderColor: "green",  tension: 0.3, pointRadius: 0 },
+          { label: "Leaving City",  data: [], borderColor: "red",    tension: 0.3, pointRadius: 0 }
+        ]
+      },
+      options: {
+        animation: false,
+        plugins: { legend: { labels: { font: { family: "monospace" } } } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 6 } },
+          y: { beginAtZero: true }
+        }
+      }
+    }
+  );
+
+  function updateChart(history) {
+    chart.data.labels            = history.map(h => h.time);
+    chart.data.datasets[0].data = history.map(h => h["Entering City"] ?? 0);
+    chart.data.datasets[1].data = history.map(h => h["Leaving City"]  ?? 0);
+    chart.update();
+  }
+
+  function updateZones(counts) {
+    if (!counts || Object.keys(counts).length === 0) return;
+    zoneTable.innerHTML = `<tr><th>Zone</th><th>Count</th></tr>` +
+      Object.entries(counts)
+        .map(([name, count]) => `<tr><td>${name}</td><td>${count}</td></tr>`)
+        .join("");
+  }
+
+  let pollInterval = null;
+
+  async function pollStats() {
+    try {
+      const data = await fetch(`${API}/stats`).then(r => r.json());
+
+      statFps.textContent    = data.fps;
+      statActive.textContent = data.active_tracks;
+      statTotal.textContent  = data.history.length
+        ? data.history.at(-1).total : 0;
+
+      densityEl.textContent  = data.density;
+      densityEl.className    = data.density;
+
+      updateZones(data.zone_counts);
+      updateChart(data.history);
+    } catch (_) {}
+  }
+
+  btnStart.addEventListener("click", async () => {
+    await fetch(`${API}/start`);
+    videoFeed.src     = `${API}/video`;
+    statusEl.textContent = "● running";
+    statusEl.className   = "running";
+    btnStart.disabled = true;
+    btnStop.disabled  = false;
+    pollInterval = setInterval(pollStats, 1000);
+  });
+
+  btnStop.addEventListener("click", async () => {
+    await fetch(`${API}/stop`);
+    videoFeed.src        = "";
+    statusEl.textContent = "● stopped";
+    statusEl.className   = "";
+    btnStart.disabled = false;
+    btnStop.disabled  = true;
+    clearInterval(pollInterval);
+  });
+
+  // ── Load video list on page load ──────────────────────────────────────
+async function loadVideos() {
+  const videos = await fetch(`${API}/videos`).then(r => r.json());
+  videos.forEach(v => {
+    const opt        = document.createElement("option");
+    opt.value        = v.filename;
+    opt.textContent  = v.label + (v.has_zones ? "" : " (no zones)");
+    opt.disabled     = !v.has_zones;   // can't start without zones
+    videoSelect.appendChild(opt);
+  });
+}
+
+videoSelect.addEventListener("change", () => {
+  btnStart.disabled = !videoSelect.value;
+});
+
+loadVideos();
+
+
+// ── Update your existing btnStart click handler ───────────────────────
+// Just change the fetch URL from /start to /start/${filename}
+btnStart.addEventListener("click", async () => {
+  const filename = videoSelect.value;
+  if (!filename) return;
+
+  await fetch(`${API}/start/${filename}`);
+
+  videoFeed.src        = `${API}/video`;
+  statusEl.textContent = "● running";
+  statusEl.className   = "running";
+  btnStart.disabled    = true;
+  btnStop.disabled     = false;
+  videoSelect.disabled = true;   // lock dropdown while running
+
+  pollInterval = setInterval(pollStats, 1000);
+});
+
+</script>
+</body>
+</html>
+```
