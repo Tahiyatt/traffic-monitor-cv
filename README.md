@@ -40,8 +40,7 @@ cd traffic-monitor-cv
 pip install -r requirements.txt
 ```
 
-Download sort.py from the [SORT repository](https://github.com/abewley/sort) 
-and place it in the project root.
+I had downloaded sort.py from the [SORT repository](https://github.com/abewley/sort) and place it in the project root.
 
 Docker Contanier coming soon for easier setup.
 
