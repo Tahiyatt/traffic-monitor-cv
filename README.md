@@ -14,7 +14,8 @@ Detects and counts vehicles across user-defined zones from traffic camera footag
 - Streams annotated video and live stats to a browser via a FastAPI backend
 
 
-
+![demo](demo/TrafficMontiorDemo.gif)
+I don't know how to add a create a high quality gif so this is the best you get :)
 
 ## Project structure
 ```
