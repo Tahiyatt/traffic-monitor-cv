@@ -64,11 +64,10 @@ uvicorn api:app --reload  # set up frontend
 ```
 Then open `http://localhost:8000/ui/index.html` again.
 
-![demo](demo/Zone_setup.mp4)
+![demo](demo/setup_demo_yolo.gif)
 
-<video width="600" controls>
-  <source src="demo/Zone_setup.mp4" type="video/mp4">
-</video>
+
+
 
 ## Possible improvements
 - Re-associate SORT track IDs back to YOLO class labels for per-class counts
