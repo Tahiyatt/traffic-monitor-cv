@@ -15,6 +15,7 @@ Detects and counts vehicles across user-defined zones from traffic camera footag
 
 
 ![demo](demo/TrafficMontiorDemo.gif)
+
 I don't know how to add a create a high quality gif so this is the best you get :)
 
 ## Project structure
@@ -62,6 +63,8 @@ py main.py       # Check bounding boxes to see if they work on each video
 uvicorn api:app --reload  # set up frontend
 ```
 Then open `http://localhost:8000/ui/index.html` again.
+
+![demo](demo/Zone_setup.mp4)
 
 
 ## Possible improvements
